@@ -21,13 +21,13 @@ Requiere Node.js 22.13 o superior. Ninguna API necesita clave.
 ## Entregable 2 — APIs y endpoints
 | # | API | Uso | Endpoint | Parámetros clave | Respuesta |
 |---|-----|-----|----------|------------------|-----------|
-| 1 | OpenStreetMap Nominatim (https://nominatim.org/release-docs/latest/api/Search/) | Geocodificación | `GET https://nominatim.openstreetmap.org/search` | `q`, `format=jsonv2`, `addressdetails=1`, `limit=1`, `accept-language=es` | Arreglo JSON; `lat`/`lon` como texto, `address.country_code` |
+| 1 | OpenStreetMap Nominatim (https://nominatim.org/release-docs/latest/api/Search/) | Geocodificación | `GET https://nominatim.openstreetmap.org/search` | `q`, `format=jsonv2`, `addressdetails=1`, `limit=1`, `accept-language=es` + cabecera `User-Agent` propia (obligatoria) | Arreglo JSON; `lat`/`lon` como texto, `address.country_code` |
 | 2 | Open-Meteo (https://open-meteo.com/en/docs) | Clima | `GET https://api.open-meteo.com/v1/forecast` | `latitude`, `longitude`, `current=…`, `daily=…`, `forecast_days=3`, `timezone=auto` | Objeto con `current`, `current_units`, `daily` (arreglos paralelos) |
 | 3 | REST Countries (https://restcountries.com/) | Datos del país | `GET https://restcountries.com/v3.1/alpha/{código}` | `fields=name,translations,capital,region,subregion,population,currencies,languages,flags` | Objeto/arreglo con datos del país |
 
 **Relación entre APIs:** la API 1 produce `lat`, `lon` y `country_code`. Con `lat/lon` se consulta la API 2 y con `country_code` la API 3 (las dos en paralelo).
 
-Nota: Nominatim tiene una política de uso (máx. ~1 petición/segundo, uso moderado). Es suficiente para esta práctica, no para producción masiva.
+Nota: Nominatim tiene una política de uso (máx. ~1 petición/segundo, uso moderado) y **exige un `User-Agent` que identifique la app**; sin él responde **HTTP 403**. La app lo envía en `src/services/geocoding.js`. Si Nominatim falla por cualquier motivo real (403, caída, red), se usa automáticamente el geocodificador de Open-Meteo (`geocoding-api.open-meteo.com`) como respaldo y la tarjeta lo indica con la etiqueta *Open-Meteo (respaldo)*. La caída *simulada* de OpenStreetMap (modo prueba) NO usa el respaldo, para poder demostrar el manejo de errores.
 
 ## Entregable 5 — Cómo se procesó el JSON
 - **Nominatim** (`parseGeocoding`): toma el primer elemento del arreglo, convierte `lat` y `lon` de texto a número con `parseFloat`, obtiene el código de país en mayúsculas (`mx` → `MX`) y construye el enlace a OpenStreetMap. Si el arreglo viene vacío devuelve `null` y se muestra "ciudad no encontrada".
@@ -61,9 +61,10 @@ Cada servicio tiene su archivo en `src/services/` y devuelve un objeto simple qu
 App.js                        pestañas (Destinos / Incidencias)
 src/screens/DestinosScreen.js     Práctica 1
 src/screens/IncidenciasScreen.js  Práctica 2
-src/services/                 geocoding · weather · country · supabase · storage · incidencias
-src/utils/                    http · validation · base64 · errors
-src/components/Card.js        tarjeta cargando/error/contenido
+src/services/                 geocoding · weather · country · history · supabase · storage · incidencias · diagnostico
+src/utils/                    http · validation · base64 · errors · format
+src/components/               Card (cargando/error/contenido) · Header · ui (Button, Chip, Skeleton)
+src/theme.js                  colores, radios y sombras
 supabase/setup.sql            bucket privado + tabla + reglas de seguridad
 tests/                        pruebas unitarias (npm test)
 evidencias/                   capturas de pantalla (por agregar)
@@ -90,7 +91,10 @@ evidencias/                   capturas de pantalla (por agregar)
 2. **Authentication → Sign In / Providers →** activa **Allow anonymous sign-ins** (cada instalación recibe un usuario propio sin pedir registro; en producción conviene usar correo/Google).
 3. **SQL Editor →** pega y ejecuta `supabase/setup.sql`. Crea el bucket privado, la tabla `incidencias` y las reglas.
 4. **Project Settings → API:** copia *Project URL* y la clave *anon/publishable*.
-5. Copia `.env.example` a `.env` y pega ambos valores. Reinicia con `npx expo start -c`.
+5. Copia `.env.example` a `.env` y pega ambos valores en `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Reinicia con `npx expo start -c`.
+   > En Expo solo se leen variables que empiezan con **`EXPO_PUBLIC_`**. Con `NEXT_PUBLIC_…` la app dirá "Falta configurar Supabase".
+
+Al abrir la pestaña **Incidencias**, la app comprueba sola los 3 pasos (sesión anónima, tabla, bucket) y muestra con ✅/❌ cuál falta y cómo arreglarlo.
 
 ## Parte 2 y 3 — Flujo implementado
 1. El usuario escribe título y descripción, y elige **Galería** o **Cámara** (`expo-image-picker`, con permisos solicitados en tiempo de ejecución).
@@ -139,5 +143,19 @@ Se guarda la **ruta y no la URL** porque la URL firmada caduca; se regenera cuan
 ## Notas y límites
 - Las sesiones anónimas son un atajo para el prototipo: si se desinstala la app se pierde el usuario y, con él, el acceso a sus fotos. Para producción usa autenticación real y, si hace falta, que personal autorizado vea todas las incidencias con un rol/política específica.
 - `expo-image-picker` y la cámara requieren dispositivo físico o emulador con cámara; funcionan en Expo Go.
-#   t u r i s m o  
- 
+# turismo
+
+---
+
+# Solución de problemas
+
+| Síntoma | Causa | Solución |
+|---------|-------|----------|
+| Destinos: "OpenStreetMap respondió con error HTTP 403" | Nominatim bloquea peticiones sin `User-Agent` propio | Ya corregido; además hay respaldo automático. Actualiza la app (`r` en la terminal de Expo). |
+| Incidencias: "Falta configurar Supabase" | Variables con prefijo equivocado o `.env` sin reiniciar | Usa `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` y reinicia con `npx expo start -c`. |
+| ❌ Sesión anónima | Anonymous sign-ins desactivado | Supabase → Authentication → Sign In / Providers → *Allow anonymous sign-ins*. |
+| ❌ Tabla / ❌ Bucket | No se ejecutó el SQL | Supabase → SQL Editor → pega y ejecuta `supabase/setup.sql`. |
+| ❌ con "Invalid API key" | Clave mal copiada | Project Settings → API → copia la *anon/publishable key* completa. |
+
+> Tip: `.history/` (extensión Local History de VS Code) guarda copias de tu `.env`; ya está en `.gitignore`.
+

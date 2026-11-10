@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Turismo e Incidencias",
+    "slug": "turismo-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {},
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La app necesita acceder a tus fotos para adjuntarlas a la incidencia.",
+          "cameraPermission": "La app necesita la cámara para fotografiar la incidencia."
+        }
+      ]
+    ]
+  }
+}
